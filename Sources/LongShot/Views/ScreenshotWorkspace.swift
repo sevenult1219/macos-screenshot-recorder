@@ -178,6 +178,13 @@ struct ScreenshotWorkspace: View {
                             .environmentObject(model)
                     }
                 }
+
+                HStack(spacing: 5) {
+                    Image(systemName: "cursorarrow")
+                    Text("滚动事件只发送给目标窗口，不会移动鼠标")
+                }
+                .font(.system(size: 9.2))
+                .foregroundStyle(.tertiary)
             }
         }
     }
