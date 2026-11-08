@@ -82,13 +82,13 @@ struct LongShotApp: App {
                 .keyboardShortcut("r", modifiers: [.command])
                 .disabled(model.isCapturing)
 
-                Button("快速保存到下载") {
+                Button("快速保存到默认位置") {
                     model.quickSaveCurrentResult()
                 }
                 .keyboardShortcut("s", modifiers: [.command])
                 .disabled(model.result == nil && model.recordingResult == nil)
 
-                Button("另存为…") {
+                Button("浏览…") {
                     model.saveCurrentResultCopy()
                 }
                 .keyboardShortcut("s", modifiers: [.command, .shift])

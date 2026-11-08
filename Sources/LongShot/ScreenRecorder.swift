@@ -126,11 +126,16 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         return (format, rate, channels)
     }
 
-    static func makeOutputURL() throws -> URL {
+    static func outputDirectory() throws -> URL {
         let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         let directory = movies.appendingPathComponent("长截屏", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    static func makeOutputURL() throws -> URL {
+        let directory = try outputDirectory()
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd_HHmmss"

@@ -62,17 +62,6 @@ struct RecordingResultView: View {
 
             Spacer()
 
-            Button {
-                model.quickSaveRecording()
-            } label: {
-                Label("快速保存", systemImage: "arrow.down.circle")
-                    .font(.system(size: 10.5, weight: .medium))
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(.red)
-            .help("立即保存一份到“下载”文件夹")
-
             HStack(spacing: 5) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -109,31 +98,51 @@ struct RecordingResultView: View {
                     Button {
                         model.quickSaveRecording()
                     } label: {
-                        Label("快速保存到下载", systemImage: "arrow.down.circle")
+                        Label("快速保存", systemImage: "arrow.down.circle")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(TaskPrimaryButtonStyle(colors: [
                         Color(red: 0.98, green: 0.25, blue: 0.23),
                         Color(red: 0.90, green: 0.16, blue: 0.35)
                     ]))
+                    .help("保存到默认目录：影片/长截屏")
 
                     Button {
                         model.saveRecordingCopy()
                     } label: {
-                        Label("另存为…", systemImage: "square.and.arrow.down")
+                        Label("浏览…", systemImage: "folder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
+                    .help("显示并更改文件位置")
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("文件位置")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                        Text(model.recordingSaveURL?.path ?? "尚未保存")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
 
                     Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([result.url])
+                        if let url = model.recordingSaveURL {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        }
                     } label: {
                         Label("在 Finder 中显示", systemImage: "folder")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
+                    .disabled(model.recordingSaveURL == nil)
 
                     Button {
                         NSWorkspace.shared.open(result.url)
@@ -146,7 +155,7 @@ struct RecordingResultView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("录屏已保存到", systemImage: "film")
+                    Label("默认输出目录", systemImage: "film")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
                     Text("影片/长截屏")

@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     @Published var hasAccessibilityPermission = Permissions.hasAccessibility
     @Published var phase: CapturePhase = .idle
     @Published var result: CaptureResult?
+    @Published var screenshotSaveURL: URL?
     @Published var alert: AppAlert?
     @Published var toast: String?
     @Published var isExportingSegments = false
@@ -23,6 +24,7 @@ final class AppModel: ObservableObject {
     @Published var isSelectingRegion = false
     @Published var isRecording = false
     @Published var recordingResult: RecordingResult?
+    @Published var recordingSaveURL: URL?
     @Published var openedMedia: OpenedMedia?
     @Published var recordingRegion: RegionTarget?
     @Published var screenshotRegion: RegionTarget?
@@ -464,6 +466,7 @@ final class AppModel: ObservableObject {
         )
 
         self.result = result
+        self.screenshotSaveURL = result.fileURL
         self.phase = .result
         self.engine = nil
         self.captureTask = nil
@@ -664,6 +667,7 @@ final class AppModel: ObservableObject {
                 )
                 self.recorder = nil
                 self.recordingResult = withThumbnail
+                self.recordingSaveURL = withThumbnail.url
                 self.showMainWindow()
                 self.hud.showRecordingDone(fileName: result.url.lastPathComponent)
             } catch {
@@ -746,6 +750,7 @@ final class AppModel: ObservableObject {
 
     func dismissRecordingResult() {
         recordingResult = nil
+        recordingSaveURL = nil
         section = .record
     }
 
@@ -753,6 +758,7 @@ final class AppModel: ObservableObject {
 
     func restart() {
         result = nil
+        screenshotSaveURL = nil
         phase = .idle
         toast = nil
         Task { await refreshWindows() }
@@ -762,6 +768,8 @@ final class AppModel: ObservableObject {
         guard !isCapturing, !isRecording, !isSelectingRegion else { return }
         result = nil
         recordingResult = nil
+        screenshotSaveURL = nil
+        recordingSaveURL = nil
         phase = .idle
         toast = nil
         section = .home
@@ -770,14 +778,23 @@ final class AppModel: ObservableObject {
 
     func quickSaveScreenshot() {
         guard let result else { return }
+        guard let directory = try? ImageWriter.outputDirectory() else {
+            alert = AppAlert(title: "保存失败", message: "无法访问默认保存目录。")
+            return
+        }
+
+        if let source = result.fileURL,
+           FileManager.default.fileExists(atPath: source.path),
+           Self.isInside(source, directory: directory) {
+            screenshotSaveURL = source
+            flashToast("已保存到默认位置：图片/长截屏")
+            return
+        }
+
         let source = result.fileURL
         let raw = result.rawImage
         let scale = result.backingScale
         let filename = source?.lastPathComponent ?? Self.defaultSaveName(extension: "png")
-        guard let directory = try? Self.downloadsDirectory() else {
-            alert = AppAlert(title: "保存失败", message: "无法访问“下载”文件夹。")
-            return
-        }
         let destination = Self.uniqueDestination(in: directory, filename: filename)
         Task {
             do {
@@ -788,7 +805,8 @@ final class AppModel: ObservableObject {
                         try ImageWriter.writePNG(raw, to: destination, backingScale: scale)
                     }
                 }.value
-                flashToast("已快速保存到下载：\(destination.lastPathComponent)")
+                screenshotSaveURL = destination
+                flashToast("已保存到默认位置：图片/长截屏")
             } catch {
                 alert = AppAlert(title: "保存失败", message: error.localizedDescription)
             }
@@ -797,10 +815,18 @@ final class AppModel: ObservableObject {
 
     func quickSaveRecording() {
         guard let result = recordingResult else { return }
-        guard let directory = try? Self.downloadsDirectory() else {
-            alert = AppAlert(title: "保存失败", message: "无法访问“下载”文件夹。")
+        guard let directory = try? ScreenRecorder.outputDirectory() else {
+            alert = AppAlert(title: "保存失败", message: "无法访问默认保存目录。")
             return
         }
+
+        if FileManager.default.fileExists(atPath: result.url.path),
+           Self.isInside(result.url, directory: directory) {
+            recordingSaveURL = result.url
+            flashToast("已保存到默认位置：影片/长截屏")
+            return
+        }
+
         let destination = Self.uniqueDestination(
             in: directory,
             filename: result.url.lastPathComponent
@@ -810,7 +836,8 @@ final class AppModel: ObservableObject {
                 try await Task.detached(priority: .userInitiated) {
                     try FileManager.default.copyItem(at: result.url, to: destination)
                 }.value
-                flashToast("已快速保存到下载：\(destination.lastPathComponent)")
+                recordingSaveURL = destination
+                flashToast("已保存到默认位置：影片/长截屏")
             } catch {
                 alert = AppAlert(title: "保存失败", message: error.localizedDescription)
             }
@@ -838,9 +865,18 @@ final class AppModel: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.mpeg4Movie]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = result.url.lastPathComponent
-        panel.title = "保存录屏"
+        panel.directoryURL = (recordingSaveURL ?? result.url).deletingLastPathComponent()
+        panel.nameFieldStringValue = (recordingSaveURL ?? result.url).lastPathComponent
+        panel.title = "选择保存位置"
+        panel.prompt = "保存"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        if url.standardizedFileURL == result.url.standardizedFileURL {
+            recordingSaveURL = url
+            flashToast("已保存到 \(url.lastPathComponent)")
+            return
+        }
+
         Task {
             do {
                 try await Task.detached(priority: .userInitiated) {
@@ -849,6 +885,7 @@ final class AppModel: ObservableObject {
                     }
                     try FileManager.default.copyItem(at: result.url, to: url)
                 }.value
+                recordingSaveURL = url
                 flashToast("已保存到 \(url.lastPathComponent)")
             } catch {
                 alert = AppAlert(title: "保存失败", message: error.localizedDescription)
@@ -861,18 +898,34 @@ final class AppModel: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = result.fileURL?.lastPathComponent ?? "截屏.png"
-        panel.title = "保存截图"
+        panel.directoryURL = (screenshotSaveURL ?? result.fileURL)?.deletingLastPathComponent()
+        panel.nameFieldStringValue = (screenshotSaveURL ?? result.fileURL)?.lastPathComponent
+            ?? "截屏.png"
+        panel.title = "选择保存位置"
+        panel.prompt = "保存"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        if let source = result.fileURL,
+           url.standardizedFileURL == source.standardizedFileURL {
+            screenshotSaveURL = url
+            flashToast("已保存到 \(url.lastPathComponent)")
+            return
+        }
+
         if let source = result.fileURL {
-            do {
-                if FileManager.default.fileExists(atPath: url.path) {
-                    try FileManager.default.removeItem(at: url)
+            Task {
+                do {
+                    try await Task.detached(priority: .userInitiated) {
+                        if FileManager.default.fileExists(atPath: url.path) {
+                            try FileManager.default.removeItem(at: url)
+                        }
+                        try FileManager.default.copyItem(at: source, to: url)
+                    }.value
+                    screenshotSaveURL = url
+                    flashToast("已保存到 \(url.lastPathComponent)")
+                } catch {
+                    alert = AppAlert(title: "保存失败", message: error.localizedDescription)
                 }
-                try FileManager.default.copyItem(at: source, to: url)
-                flashToast("已保存到 \(url.lastPathComponent)")
-            } catch {
-                alert = AppAlert(title: "保存失败", message: error.localizedDescription)
             }
             return
         }
@@ -882,8 +935,12 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 try await Task.detached(priority: .userInitiated) {
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        try FileManager.default.removeItem(at: url)
+                    }
                     try ImageWriter.writePNG(raw, to: url, backingScale: scale)
                 }.value
+                screenshotSaveURL = url
                 flashToast("已保存到 \(url.lastPathComponent)")
             } catch {
                 alert = AppAlert(title: "保存失败", message: error.localizedDescription)
@@ -976,7 +1033,7 @@ final class AppModel: ObservableObject {
     }
 
     func revealInFinder() {
-        guard let url = result?.fileURL else { return }
+        guard let url = screenshotSaveURL ?? result?.fileURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
@@ -998,18 +1055,10 @@ final class AppModel: ObservableObject {
         alert = nil
     }
 
-    private static func downloadsDirectory() throws -> URL {
-        guard let directory = FileManager.default.urls(
-            for: .downloadsDirectory,
-            in: .userDomainMask
-        ).first else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        try FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
-        return directory
+    private static func isInside(_ url: URL, directory: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let directoryPath = directory.standardizedFileURL.path
+        return path == directoryPath || path.hasPrefix(directoryPath + "/")
     }
 
     private static func uniqueDestination(in directory: URL, filename: String) -> URL {

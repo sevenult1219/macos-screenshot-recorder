@@ -124,16 +124,6 @@ struct ResultView: View {
             Spacer()
 
             Button {
-                model.quickSaveScreenshot()
-            } label: {
-                Label("快速保存", systemImage: "arrow.down.circle")
-                    .font(.system(size: 10.5, weight: .medium))
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .help("立即保存一份到“下载”文件夹")
-
-            Button {
                 showImagePreview = true
             } label: {
                 Label("查看大图", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -246,19 +236,36 @@ struct ResultView: View {
                 Button {
                     model.quickSaveScreenshot()
                 } label: {
-                    Label("快速保存到下载", systemImage: "arrow.down.circle")
+                    Label("快速保存", systemImage: "arrow.down.circle")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GradientButtonStyle(verticalPadding: 10))
+                .help("保存到默认目录：图片/长截屏")
 
                 Button {
                     model.saveCopy()
                 } label: {
-                    Label("另存为…", systemImage: "square.and.arrow.down")
+                    Label("浏览…", systemImage: "folder")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
+                .help("显示并更改文件位置")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("文件位置")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Text(model.screenshotSaveURL?.path ?? "尚未保存")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 2)
+                .padding(.vertical, 2)
 
                 if !result.isSingleShot {
                     Button {
@@ -295,11 +302,11 @@ struct ResultView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .disabled(result.fileURL == nil)
+                .disabled(model.screenshotSaveURL == nil)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Label("图片已保存到", systemImage: "photo.on.rectangle.angled")
+                Label("默认输出目录", systemImage: "photo.on.rectangle.angled")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                 Text("图片/长截屏")
