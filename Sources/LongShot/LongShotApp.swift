@@ -82,11 +82,17 @@ struct LongShotApp: App {
                 .keyboardShortcut("r", modifiers: [.command])
                 .disabled(model.isCapturing)
 
-                Button("保存副本…") {
-                    model.saveCopy()
+                Button("快速保存到下载") {
+                    model.quickSaveCurrentResult()
                 }
                 .keyboardShortcut("s", modifiers: [.command])
-                .disabled(model.result == nil)
+                .disabled(model.result == nil && model.recordingResult == nil)
+
+                Button("另存为…") {
+                    model.saveCurrentResultCopy()
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+                .disabled(model.result == nil && model.recordingResult == nil)
             }
         }
     }

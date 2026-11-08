@@ -124,6 +124,16 @@ struct ResultView: View {
             Spacer()
 
             Button {
+                model.quickSaveScreenshot()
+            } label: {
+                Label("快速保存", systemImage: "arrow.down.circle")
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .help("立即保存一份到“下载”文件夹")
+
+            Button {
                 showImagePreview = true
             } label: {
                 Label("查看大图", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -234,13 +244,21 @@ struct ResultView: View {
 
             VStack(spacing: 8) {
                 Button {
-                    model.saveCopy()
+                    model.quickSaveScreenshot()
                 } label: {
-                    Label("保存副本…", systemImage: "square.and.arrow.down")
+                    Label("快速保存到下载", systemImage: "arrow.down.circle")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GradientButtonStyle(verticalPadding: 10))
-                .keyboardShortcut("s", modifiers: [.command])
+
+                Button {
+                    model.saveCopy()
+                } label: {
+                    Label("另存为…", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
 
                 if !result.isSingleShot {
                     Button {

@@ -12,6 +12,9 @@ struct RootView: View {
             if model.phase == .result, let result = model.result {
                 ResultView(result: result)
                     .transition(.opacity)
+            } else if let recording = model.recordingResult {
+                RecordingResultView(result: recording)
+                    .transition(.opacity)
             } else if !model.hasScreenPermission && model.windows.isEmpty {
                 PermissionOnboardingView()
             } else {
@@ -66,10 +69,6 @@ struct RootView: View {
                 .padding(18)
                 .allowsHitTesting(false)
             }
-        }
-        .sheet(item: $model.recordingResult) { result in
-            RecordingResultView(result: result)
-                .environmentObject(model)
         }
         .sheet(item: $model.openedMedia) { media in
             OpenedMediaViewer(media: media)

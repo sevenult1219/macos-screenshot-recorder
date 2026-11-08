@@ -746,6 +746,7 @@ final class AppModel: ObservableObject {
 
     func dismissRecordingResult() {
         recordingResult = nil
+        section = .record
     }
 
     // MARK: - Result actions
@@ -760,10 +761,99 @@ final class AppModel: ObservableObject {
     func goHome() {
         guard !isCapturing, !isRecording, !isSelectingRegion else { return }
         result = nil
+        recordingResult = nil
         phase = .idle
         toast = nil
         section = .home
         Task { await refreshWindows() }
+    }
+
+    func quickSaveScreenshot() {
+        guard let result else { return }
+        let source = result.fileURL
+        let raw = result.rawImage
+        let scale = result.backingScale
+        let filename = source?.lastPathComponent ?? Self.defaultSaveName(extension: "png")
+        guard let directory = try? Self.downloadsDirectory() else {
+            alert = AppAlert(title: "保存失败", message: "无法访问“下载”文件夹。")
+            return
+        }
+        let destination = Self.uniqueDestination(in: directory, filename: filename)
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    if let source, FileManager.default.fileExists(atPath: source.path) {
+                        try FileManager.default.copyItem(at: source, to: destination)
+                    } else {
+                        try ImageWriter.writePNG(raw, to: destination, backingScale: scale)
+                    }
+                }.value
+                flashToast("已快速保存到下载：\(destination.lastPathComponent)")
+            } catch {
+                alert = AppAlert(title: "保存失败", message: error.localizedDescription)
+            }
+        }
+    }
+
+    func quickSaveRecording() {
+        guard let result = recordingResult else { return }
+        guard let directory = try? Self.downloadsDirectory() else {
+            alert = AppAlert(title: "保存失败", message: "无法访问“下载”文件夹。")
+            return
+        }
+        let destination = Self.uniqueDestination(
+            in: directory,
+            filename: result.url.lastPathComponent
+        )
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try FileManager.default.copyItem(at: result.url, to: destination)
+                }.value
+                flashToast("已快速保存到下载：\(destination.lastPathComponent)")
+            } catch {
+                alert = AppAlert(title: "保存失败", message: error.localizedDescription)
+            }
+        }
+    }
+
+    func quickSaveCurrentResult() {
+        if result != nil {
+            quickSaveScreenshot()
+        } else if recordingResult != nil {
+            quickSaveRecording()
+        }
+    }
+
+    func saveCurrentResultCopy() {
+        if result != nil {
+            saveCopy()
+        } else if recordingResult != nil {
+            saveRecordingCopy()
+        }
+    }
+
+    func saveRecordingCopy() {
+        guard let result = recordingResult else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = result.url.lastPathComponent
+        panel.title = "保存录屏"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        try FileManager.default.removeItem(at: url)
+                    }
+                    try FileManager.default.copyItem(at: result.url, to: url)
+                }.value
+                flashToast("已保存到 \(url.lastPathComponent)")
+            } catch {
+                alert = AppAlert(title: "保存失败", message: error.localizedDescription)
+            }
+        }
     }
 
     func saveCopy() {
@@ -772,7 +862,7 @@ final class AppModel: ObservableObject {
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = result.fileURL?.lastPathComponent ?? "截屏.png"
-        panel.title = "保存长截图"
+        panel.title = "保存截图"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if let source = result.fileURL {
             do {
@@ -895,6 +985,10 @@ final class AppModel: ObservableObject {
             NSWorkspace.shared.activateFileViewerSelecting([url])
             return
         }
+        if let recording = recordingResult {
+            NSWorkspace.shared.activateFileViewerSelecting([recording.url])
+            return
+        }
         if let directory = try? ImageWriter.outputDirectory() {
             NSWorkspace.shared.open(directory)
         }
@@ -902,6 +996,40 @@ final class AppModel: ObservableObject {
 
     func dismissAlert() {
         alert = nil
+    }
+
+    private static func downloadsDirectory() throws -> URL {
+        guard let directory = FileManager.default.urls(
+            for: .downloadsDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        return directory
+    }
+
+    private static func uniqueDestination(in directory: URL, filename: String) -> URL {
+        let ext = URL(fileURLWithPath: filename).pathExtension
+        let base = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+        var candidate = directory.appendingPathComponent(filename)
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            let name = ext.isEmpty ? "\(base)_\(suffix)" : "\(base)_\(suffix).\(ext)"
+            candidate = directory.appendingPathComponent(name)
+            suffix += 1
+        }
+        return candidate
+    }
+
+    private static func defaultSaveName(extension ext: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        return "截录_\(formatter.string(from: Date())).\(ext)"
     }
 
     private func flashToast(_ text: String) {
