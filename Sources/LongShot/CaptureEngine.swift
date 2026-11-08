@@ -209,11 +209,29 @@ final class CaptureEngine {
                 break
             }
 
-            let alignment: AlignmentResult
+            var alignment: AlignmentResult
             do {
                 alignment = try aligner.align(previous: previous, next: next)
+            } catch let error as AlignmentError {
+                // Lazy-loaded images, carousels and short animations can change
+                // the frame right after scrolling. Give the page one more beat
+                // and retry the same position before giving up.
+                try await sleep(milliseconds: 320)
+                guard !isCancelled else { break }
+                guard let retry = try? await captureBitmap(
+                    filter: filter,
+                    configuration: configuration,
+                    region: captureRegion
+                ),
+                let retryAlignment = try? aligner.align(previous: previous, next: retry),
+                retryAlignment.offset > 0 else {
+                    warning = alignmentWarning(for: error, screens: screens)
+                    break
+                }
+                next = retry
+                alignment = retryAlignment
             } catch {
-                warning = "页面内容变化较大，已在第 \(screens) 屏停止拼接，前面截取的内容仍会保存。"
+                warning = "已在第 \(screens) 屏停止拼接，前面截取的内容仍会保存。"
                 break
             }
 
@@ -380,6 +398,18 @@ final class CaptureEngine {
     }
 
     // MARK: - Helpers
+
+    private func alignmentWarning(for error: AlignmentError, screens: Int) -> String {
+        let prefix = "第 \(screens) 屏后停止拼接，前面截取的内容仍会保存。"
+        switch error {
+        case .notEnoughOverlap:
+            return "页面滚动幅度过大，两帧重叠不足。\(prefix)请把“重叠区域”调大（如 65%–70%），或延长“滚动等待”后重试。"
+        case .ambiguous:
+            return "页面内容变化较大，可能是轮播广告、视频、动画或大面积重复内容导致无法可靠定位。\(prefix)请增大“重叠区域”或延长“滚动等待”后重试。"
+        case .sizeMismatch:
+            return "前后截屏的尺寸不一致。\(prefix)"
+        }
+    }
 
     private func report(screens: Int, height: Int) async {
         await progressHandler(CaptureProgress(screens: screens, pixelHeight: height))
