@@ -4,13 +4,18 @@ import ApplicationServices
 enum WindowActivator {
     static func activate(_ target: WindowTarget) {
         if let app = NSRunningApplication(processIdentifier: target.processID) {
-            app.activate(options: [.activateAllWindows])
+            _ = app.activate(options: [.activateAllWindows])
         }
         raiseAXWindow(for: target)
     }
 
     private static func raiseAXWindow(for target: WindowTarget) {
         let appElement = AXUIElementCreateApplication(target.processID)
+        AXUIElementSetAttributeValue(
+            appElement,
+            kAXFrontmostAttribute as CFString,
+            kCFBooleanTrue
+        )
         var rawWindows: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
             appElement,

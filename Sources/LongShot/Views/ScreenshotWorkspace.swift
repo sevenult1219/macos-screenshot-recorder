@@ -181,7 +181,7 @@ struct ScreenshotWorkspace: View {
 
                 HStack(spacing: 5) {
                     Image(systemName: "cursorarrow")
-                    Text("滚动事件只发送给目标窗口，不会移动鼠标")
+                    Text("长截屏优先定向滚动；必要时使用兼容滚动，不会移动鼠标")
                 }
                 .font(.system(size: 9.2))
                 .foregroundStyle(.tertiary)

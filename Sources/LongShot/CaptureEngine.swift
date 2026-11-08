@@ -9,6 +9,7 @@ final class CaptureEngine {
     private enum ScrollStrategy {
         case pidPixel
         case pidLine
+        case hidPixel
     }
 
     private let source: CaptureSource
@@ -23,6 +24,10 @@ final class CaptureEngine {
     private var triedFallback = false
 
     private var scrollTarget: WindowTarget? { source.windowTarget }
+    private var region: RegionTarget? {
+        if case .region(let region) = source { return region }
+        return nil
+    }
 
     init(
         source: CaptureSource,
@@ -200,6 +205,23 @@ final class CaptureEngine {
                     region: captureRegion
                 )
                 moved = !previous.isNearlyEqual(to: next, tolerance: 0.0012)
+
+                // Some applications ignore process-targeted scroll events. Fall
+                // back to a compatibility wheel event at the captured window so
+                // long capture still works. This is only used when targeted
+                // delivery fails and never warps the pointer.
+                if !moved {
+                    strategy = .hidPixel
+                    sendScroll(points: scrollPoints * 1.15)
+                    try await sleep(milliseconds: Int(settings.scrollDelay * 1000) + 120)
+                    guard !isCancelled else { break }
+                    next = try await captureBitmap(
+                        filter: filter,
+                        configuration: configuration,
+                        region: captureRegion
+                    )
+                    moved = !previous.isNearlyEqual(to: next, tolerance: 0.0012)
+                }
             }
 
             guard moved else {
@@ -377,24 +399,49 @@ final class CaptureEngine {
     // MARK: - Scrolling
 
     private func sendScroll(points: Double) {
-        // Send scroll only to the captured application. A global HID event would
-        // steal the user's mouse wheel and can affect whichever app is under the
-        // pointer. postToPid leaves the cursor and other applications untouched.
-        guard let scrollTarget else { return }
-        let units: CGScrollEventUnit = strategy == .pidLine ? .line : .pixel
-        let magnitude: Int32 = strategy == .pidLine
-            ? max(1, Int32(points / 48))
-            : Int32(max(1, min(9_000, points)))
-        guard let event = CGEvent(
-            scrollWheelEvent2Source: nil,
-            units: units,
-            wheelCount: 1,
-            wheel1: -magnitude,
-            wheel2: 0,
-            wheel3: 0
-        ) else { return }
-        event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
-        event.postToPid(scrollTarget.processID)
+        switch strategy {
+        case .pidPixel, .pidLine:
+            // Prefer scrolling only the captured process. This leaves the
+            // pointer and other applications untouched.
+            guard let scrollTarget else { return }
+            let units: CGScrollEventUnit = strategy == .pidLine ? .line : .pixel
+            let magnitude: Int32 = strategy == .pidLine
+                ? max(1, Int32(points / 48))
+                : Int32(max(1, min(9_000, points)))
+            guard let event = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: units,
+                wheelCount: 1,
+                wheel1: -magnitude,
+                wheel2: 0,
+                wheel3: 0
+            ) else { return }
+            event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            event.postToPid(scrollTarget.processID)
+
+        case .hidPixel:
+            // Compatibility fallback for applications that ignore targeted
+            // events. Deliver the wheel event to the captured window's center;
+            // do not move the pointer.
+            let center: CGPoint
+            if let region {
+                center = CGPoint(x: region.rect.midX, y: region.rect.midY)
+            } else {
+                center = CGPoint(x: liveWindowFrame.midX, y: liveWindowFrame.midY)
+            }
+            let magnitude = Int32(max(1, min(9_000, points)))
+            guard let event = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .pixel,
+                wheelCount: 1,
+                wheel1: -magnitude,
+                wheel2: 0,
+                wheel3: 0
+            ) else { return }
+            event.location = center
+            event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+            event.post(tap: .cghidEventTap)
+        }
     }
 
     // MARK: - Helpers
