@@ -210,7 +210,7 @@ final class CaptureEngine {
                 // back to a compatibility wheel event at the captured window so
                 // long capture still works. This is only used when targeted
                 // delivery fails and never warps the pointer.
-                if !moved {
+                if !moved, settings.allowCompatibilityScroll {
                     strategy = .hidPixel
                     sendScroll(points: scrollPoints * 1.15)
                     try await sleep(milliseconds: Int(settings.scrollDelay * 1000) + 120)
@@ -226,7 +226,9 @@ final class CaptureEngine {
 
             guard moved else {
                 if screens == 1 {
-                    warning = "当前窗口没有可滚动的内容，已保存可见画面。"
+                    warning = settings.allowCompatibilityScroll
+                        ? "当前窗口没有可滚动的内容，已保存可见画面。"
+                        : "目标应用没有响应定向滚动。请在截屏设置中开启“允许兼容滚动”后重试；已保存当前画面。"
                 }
                 break
             }

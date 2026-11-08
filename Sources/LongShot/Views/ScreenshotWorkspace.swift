@@ -181,7 +181,9 @@ struct ScreenshotWorkspace: View {
 
                 HStack(spacing: 5) {
                     Image(systemName: "cursorarrow")
-                    Text("长截屏优先定向滚动；必要时使用兼容滚动，不会移动鼠标")
+                    Text(model.settings.allowCompatibilityScroll
+                         ? "优先定向滚动，必要时使用兼容回退"
+                         : "只使用定向滚动，不使用兼容回退")
                 }
                 .font(.system(size: 9.2))
                 .foregroundStyle(.tertiary)

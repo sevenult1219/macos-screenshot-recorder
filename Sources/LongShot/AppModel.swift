@@ -1005,10 +1005,10 @@ final class AppModel: ObservableObject {
 
     func copyToClipboard() {
         guard let result else { return }
-        guard let url = result.fileURL else {
+        guard let url = screenshotSaveURL ?? result.fileURL else {
             alert = AppAlert(
                 title: "无法复制",
-                message: "自动保存的 PNG 文件不存在。请使用“保存副本”重新导出。"
+                message: "当前图片文件不存在。请使用“浏览…”重新保存后再复制。"
             )
             return
         }
@@ -1017,7 +1017,7 @@ final class AppModel: ObservableObject {
         guard size <= maxBytes else {
             alert = AppAlert(
                 title: "图片过大，未复制",
-                message: "这张长图约 \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))，剪贴板无法可靠承载。请使用“保存副本”或直接分享 PNG 文件。"
+                message: "这张长图约 \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))，剪贴板无法可靠承载。请使用“浏览…”或直接分享 PNG 文件。"
             )
             return
         }
@@ -1122,6 +1122,7 @@ final class AppModel: ObservableObject {
         defaults.set(settings.recordingFPS, forKey: "recordingFPS")
         defaults.set(settings.recordingAudio, forKey: "recordingAudio")
         defaults.set(settings.recordingMicrophone, forKey: "recordingMicrophone")
+        defaults.set(settings.allowCompatibilityScroll, forKey: "allowCompatibilityScroll")
     }
 
     private func loadSettings() {
@@ -1141,6 +1142,9 @@ final class AppModel: ObservableObject {
         }
         if defaults.object(forKey: "recordingMicrophone") != nil {
             loaded.recordingMicrophone = defaults.bool(forKey: "recordingMicrophone")
+        }
+        if defaults.object(forKey: "allowCompatibilityScroll") != nil {
+            loaded.allowCompatibilityScroll = defaults.bool(forKey: "allowCompatibilityScroll")
         }
         settings = loaded
     }
