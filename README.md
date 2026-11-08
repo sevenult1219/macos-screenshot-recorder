@@ -128,7 +128,7 @@ scripts/build_app.sh --install   # 同时安装到 /Applications
 - `RegionSelectionController`：全屏框选浮层，支持拖动、回车确认、Esc 取消。
 - `RegionResolver`：找到框选区域下方最前面的窗口，用于激活和滚动。
 - `CaptureEngine`：支持窗口/区域裁剪，以及普通单帧截屏和长截图；长截图优先使用 `CGEvent.postToPid` 定向滚动，目标应用不响应时回退到兼容滚轮事件。拼接失败时会等待片刻再抓取一帧重试，并给出具体的重试建议。
-- `ScreenRecorder`：ScreenCaptureKit + AVAssetWriter，将窗口或显示器画面编码为 H.264 MP4；系统声音和麦克风分别写入两条 AAC 音轨，实时混音由播放器完成。录制悬浮条通过排除本应用窗口避免进入画面。
+- `ScreenRecorder`：ScreenCaptureKit + AVAssetWriter，将窗口或显示器画面编码为 H.264 MP4；同时录制系统声音和麦克风时，录制结束后通过 `AudioTrackMixer` 合并为一条 AAC 音轨，视频轨道原样直通。录制悬浮条通过排除本应用窗口避免进入画面。
 - `Sources/LongShot`：采集、滚屏、权限、HUD 和 SwiftUI 界面。
 - 长图仅受磁盘空间限制；应用会预留 1 GB 安全空间，低于该值时停止并保存已截取的无缝内容。
 
