@@ -410,6 +410,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 ]
                 let audio = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
                 audio.expectsMediaDataInRealTime = true
+                audio.metadata = [Self.trackTitle("系统声音")]
                 if writer.canAdd(audio) {
                     writer.add(audio)
                     audioInput = audio
@@ -429,6 +430,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     sourceFormatHint: microphoneFormat
                 )
                 microphone.expectsMediaDataInRealTime = true
+                microphone.metadata = [Self.trackTitle("麦克风")]
                 guard writer.canAdd(microphone) else {
                     throw RecordingError.writerUnavailable
                 }
@@ -441,6 +443,14 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         } catch {
             throw RecordingError.startFailed(error.localizedDescription)
         }
+    }
+
+    private static func trackTitle(_ title: String) -> AVMetadataItem {
+        let item = AVMutableMetadataItem()
+        item.identifier = .commonIdentifierTitle
+        item.value = title as NSString
+        item.extendedLanguageTag = "und"
+        return item
     }
 
     private func evenDimension(_ value: CGFloat) -> Int {

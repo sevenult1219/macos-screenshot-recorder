@@ -6,10 +6,14 @@ APP_NAME="截录"
 DIST_DIR="$ROOT/dist"
 APP="$DIST_DIR/$APP_NAME.app"
 
-echo "==> Building release binary"
+echo "==> Building universal release binary"
 cd "$ROOT"
-swift build -c release --product LongShot
-BIN_PATH="$(swift build -c release --show-bin-path)"
+swift build -c release --product LongShot --arch arm64 --arch x86_64
+BIN_PATH="$(swift build -c release --show-bin-path --arch arm64 --arch x86_64)"
+if ! lipo -info "$BIN_PATH/LongShot" | grep -q "x86_64"; then
+    echo "error: expected a universal arm64 + x86_64 binary" >&2
+    exit 1
+fi
 
 echo "==> Assembling $APP"
 rm -rf "$APP"

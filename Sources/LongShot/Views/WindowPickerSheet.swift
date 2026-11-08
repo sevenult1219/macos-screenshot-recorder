@@ -68,11 +68,18 @@ struct WindowPickerSheet: View {
                 Button {
                     Task { await model.refreshWindows() }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .medium))
+                    if model.isLoadingWindows {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.65)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11, weight: .medium))
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .disabled(model.isLoadingWindows)
                 .help("刷新窗口列表")
 
                 Button("取消") {
@@ -111,7 +118,15 @@ struct WindowPickerSheet: View {
             Divider().opacity(0.5)
 
             ScrollView(.vertical) {
-                if windows.isEmpty {
+                if model.isLoadingWindows, windows.isEmpty {
+                    VStack(spacing: 10) {
+                        Spacer(minLength: 90)
+                        ProgressView("正在读取窗口…")
+                            .controlSize(.small)
+                        Spacer(minLength: 90)
+                    }
+                    .frame(maxWidth: .infinity)
+                } else if windows.isEmpty {
                     VStack(spacing: 10) {
                         Spacer(minLength: 90)
                         Image(systemName: "macwindow.badge.plus")

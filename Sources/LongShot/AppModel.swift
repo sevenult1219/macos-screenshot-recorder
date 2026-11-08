@@ -11,7 +11,7 @@ final class AppModel: ObservableObject {
     @Published var thumbnails: [CGWindowID: NSImage] = [:]
     @Published var selectedScreenshotWindowID: CGWindowID?
     @Published var selectedRecordingWindowID: CGWindowID?
-    private var isLoadingWindows = false
+    @Published private(set) var isLoadingWindows = false
     @Published var hasScreenPermission = Permissions.hasScreenRecording
     @Published var hasAccessibilityPermission = Permissions.hasAccessibility
     @Published var phase: CapturePhase = .idle
