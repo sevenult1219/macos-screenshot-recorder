@@ -282,6 +282,10 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             throw RecordingError.startFailed(writer.error?.localizedDescription ?? "录屏写入失败")
         }
 
+        if capturesAudio, capturesMicrophone {
+            await AudioTrackMixer.mergeIfNeeded(url: outputURL)
+        }
+
         let duration: TimeInterval
         if let startPTS, let lastVideoPTS {
             duration = max(0, CMTimeGetSeconds(CMTimeSubtract(lastVideoPTS, startPTS)))

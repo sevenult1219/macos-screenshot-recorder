@@ -71,8 +71,8 @@ struct OpenedMediaViewer: View {
     @ViewBuilder
     private var content: some View {
         switch media.kind {
-        case .image(let image, let pixelSize):
-            ExternalImageCanvas(image: image, pixelSize: pixelSize, mode: imageMode)
+        case .image(let rawImage, _):
+            TiledImagePreview(rawImage: rawImage, mode: imageMode)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, 22)
         case .video(let url):
@@ -111,49 +111,5 @@ struct OpenedMediaViewer: View {
         .padding(.horizontal, 22)
         .padding(.top, 14)
         .padding(.bottom, 20)
-    }
-}
-
-private struct ExternalImageCanvas: View {
-    let image: NSImage
-    let pixelSize: CGSize
-    let mode: PreviewMode
-
-    @Environment(\.displayScale) private var displayScale
-
-    var body: some View {
-        GeometryReader { proxy in
-            ScrollView([.vertical, .horizontal]) {
-                let available = max(120, proxy.size.width - 40)
-                let width = targetWidth(available: available)
-                let height = width * pixelSize.height / max(1, pixelSize.width)
-
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(mode == .fitWidth ? .high : .none)
-                    .frame(width: width, height: height)
-                    .padding(20)
-                    .frame(
-                        minWidth: proxy.size.width,
-                        minHeight: proxy.size.height,
-                        alignment: .center
-                    )
-            }
-            .background(Color(nsColor: .underPageBackgroundColor))
-            .scrollIndicators(.automatic)
-        }
-    }
-
-    private func targetWidth(available: CGFloat) -> CGFloat {
-        let scale = max(1, displayScale)
-        let baseWidth = pixelSize.width / scale
-        switch mode {
-        case .fitWidth:
-            return min(baseWidth, available)
-        case .actualSize:
-            return baseWidth
-        case .doubleSize:
-            return baseWidth * 2
-        }
     }
 }

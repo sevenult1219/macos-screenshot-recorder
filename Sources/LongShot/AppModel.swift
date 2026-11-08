@@ -211,10 +211,44 @@ final class AppModel: ObservableObject {
                     return
                 }
                 let size = CGSize(width: cgImage.width, height: cgImage.height)
-                let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-                NSApp.activate(ignoringOtherApps: true)
-                openedMedia = OpenedMedia(url: standardized, kind: .image(image, pixelSize: size))
-                return
+                do {
+                    let image = try BGRAImage(cgImage: cgImage)
+                    let directory = try RawImageFile.defaultDirectory()
+                    let rawURL = directory.appendingPathComponent(
+                        "external_\(UUID().uuidString).raw"
+                    )
+                    guard FileManager.default.createFile(atPath: rawURL.path, contents: nil) else {
+                        throw CocoaError(.fileWriteUnknown)
+                    }
+                    try image.withUnsafeMutableBytes { buffer in
+                        guard let base = buffer.baseAddress else {
+                            throw CocoaError(.fileWriteUnknown)
+                        }
+                        let data = Data(
+                            bytesNoCopy: base,
+                            count: buffer.count,
+                            deallocator: .none
+                        )
+                        try data.write(to: rawURL, options: .atomic)
+                    }
+                    let rawImage = try RawImageFile(
+                        url: rawURL,
+                        width: cgImage.width,
+                        height: cgImage.height
+                    )
+                    NSApp.activate(ignoringOtherApps: true)
+                    openedMedia = OpenedMedia(
+                        url: standardized,
+                        kind: .image(rawImage, pixelSize: size)
+                    )
+                    return
+                } catch {
+                    alert = AppAlert(
+                        title: "无法打开图片",
+                        message: "图片解码或临时文件写入失败：\(error.localizedDescription)"
+                    )
+                    return
+                }
             }
         }
 

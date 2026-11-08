@@ -1,9 +1,10 @@
-import AppKit
 import CoreGraphics
+import Foundation
+import LongShotCore
 
 struct OpenedMedia: Identifiable {
     enum Kind {
-        case image(NSImage, pixelSize: CGSize)
+        case image(RawImageFile, pixelSize: CGSize)
         case video(URL)
     }
 
