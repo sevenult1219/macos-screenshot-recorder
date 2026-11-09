@@ -211,6 +211,29 @@ struct RecordWorkspace: View {
                 .opacity(microphoneSupported ? 1 : 0.45)
                 .help(microphoneSupported ? "同时录制麦克风声音" : "麦克风录制需要 macOS 15 或更高版本")
 
+                Divider()
+                    .frame(height: 26)
+                    .opacity(0.55)
+
+                HStack(spacing: 6) {
+                    Text("倒计时")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Picker("", selection: Binding(
+                        get: { model.settings.recordingCountdown },
+                        set: { model.settings.recordingCountdown = $0 }
+                    )) {
+                        Text("关闭").tag(0)
+                        Text("3 秒").tag(3)
+                        Text("5 秒").tag(5)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                    .frame(width: 84)
+                    .tint(.red)
+                }
+
                 Spacer()
             }
         }

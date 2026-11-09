@@ -4,6 +4,7 @@ import SwiftUI
 struct RecordingResultView: View {
     @EnvironmentObject private var model: AppModel
     let result: RecordingResult
+    @State private var showTrim = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +30,11 @@ struct RecordingResultView: View {
             .padding(.top, 14)
             .padding(.bottom, 22)
             .frame(maxHeight: .infinity)
+        }
+        .sheet(isPresented: $showTrim) {
+            VideoTrimSheet(result: result) { url in
+                model.showToast("已导出裁剪副本：\(url.lastPathComponent)")
+            }
         }
     }
 
@@ -143,6 +149,15 @@ struct RecordingResultView: View {
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .disabled(model.recordingSaveURL == nil)
+
+                    Button {
+                        showTrim = true
+                    } label: {
+                        Label("裁剪视频", systemImage: "scissors")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
 
                     Button {
                         NSWorkspace.shared.open(result.url)

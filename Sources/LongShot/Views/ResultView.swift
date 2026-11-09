@@ -4,6 +4,8 @@ struct ResultView: View {
     @EnvironmentObject private var model: AppModel
     let result: CaptureResult
     @State private var showImagePreview = false
+    @State private var showAnnotationEditor = false
+    @State private var showOCR = false
     @State private var previewMode: PreviewMode = .fitWidth
 
     var body: some View {
@@ -81,6 +83,14 @@ struct ResultView: View {
         .sheet(isPresented: $showImagePreview) {
             ImagePreviewSheet(result: result)
         }
+        .sheet(isPresented: $showAnnotationEditor) {
+            AnnotationEditorView(result: result) { url in
+                model.showToast("已保存标注副本：\(url.lastPathComponent)")
+            }
+        }
+        .sheet(isPresented: $showOCR) {
+            OCRResultView(result: result)
+        }
     }
 
     private var shouldSuggestSegments: Bool {
@@ -122,6 +132,25 @@ struct ResultView: View {
             }
 
             Spacer()
+
+            Button {
+                showAnnotationEditor = true
+            } label: {
+                Label("标注", systemImage: "pencil.tip.crop.circle")
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .keyboardShortcut("e", modifiers: [.command])
+
+            Button {
+                showOCR = true
+            } label: {
+                Label("文字", systemImage: "text.viewfinder")
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
 
             Button {
                 showImagePreview = true
@@ -284,6 +313,17 @@ struct ResultView: View {
                     .disabled(model.isExportingSegments)
                     .help("选择保存位置，按约 2000 px 高度拆分为多张原始宽度 PNG，适合上传 ChatGPT 等平台")
                 }
+
+                Button {
+                    model.pinCurrentScreenshot()
+                } label: {
+                    Label("贴图到屏幕", systemImage: "pin")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .help("将截图固定在屏幕上，始终置顶（⌘⇧P）")
 
                 Button {
                     model.copyToClipboard()

@@ -100,6 +100,8 @@ struct CaptureSettings: Equatable {
     var recordingAudio: Bool = true
     var recordingMicrophone: Bool = false
     var allowCompatibilityScroll: Bool = true
+    var manualScroll: Bool = false
+    var recordingCountdown: Int = 0
 
     var scrollFraction: Double {
         max(0.30, min(0.55, 1.0 - overlapFraction))

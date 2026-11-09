@@ -13,6 +13,7 @@ final class HUDState: ObservableObject {
     @Published var mode: HUDMode = .working
     @Published var title = "正在截屏"
     @Published var detail = "准备中…"
+    @Published var manual = false
     var onStop: (() -> Void)?
 }
 
@@ -27,16 +28,47 @@ final class HUDController {
     private var panel: HUDWindow?
     private var hideTask: DispatchWorkItem?
 
-    func show(title: String, label: String, frame: CGRect, onStop: @escaping () -> Void) {
+    func show(
+        title: String,
+        label: String,
+        frame: CGRect,
+        manual: Bool = false,
+        onStop: @escaping () -> Void
+    ) {
         hideTask?.cancel()
         state.mode = .working
         state.title = title
-        state.detail = "已选择 \(label) · 准备中…"
+        state.manual = manual
+        state.detail = manual
+            ? "滚动页面，完成后点“停止”"
+            : "已选择 \(label) · 准备中…"
         state.onStop = onStop
 
         let panel = ensurePanel()
         position(panel, near: frame)
         panel.orderFrontRegardless()
+    }
+
+    func showCountdown(
+        seconds: Int,
+        label: String,
+        frame: CGRect,
+        onCancel: @escaping () -> Void
+    ) {
+        hideTask?.cancel()
+        state.mode = .working
+        state.manual = false
+        state.title = "准备录屏"
+        state.detail = "\(seconds) 秒后开始 · \(label)"
+        state.onStop = onCancel
+        let panel = ensurePanel()
+        position(panel, near: frame)
+        panel.orderFrontRegardless()
+    }
+
+    func updateCountdown(seconds: Int, label: String) {
+        guard state.mode == .working else { return }
+        state.detail = "\(max(0, seconds)) 秒后开始 · \(label)"
     }
 
     func showRecording(label: String, frame: CGRect, onStop: @escaping () -> Void) {
@@ -73,7 +105,9 @@ final class HUDController {
     func update(_ progress: CaptureProgress) {
         hideTask?.cancel()
         guard state.mode == .working else { return }
-        state.detail = "第 \(progress.screens) 屏 · 高度 \(progress.pixelHeight.formatted()) px"
+        state.detail = state.manual
+            ? "第 \(progress.screens) 屏 · \(progress.pixelHeight.formatted()) px · 完成后点停止"
+            : "第 \(progress.screens) 屏 · 高度 \(progress.pixelHeight.formatted()) px"
     }
 
     func showStopping() {

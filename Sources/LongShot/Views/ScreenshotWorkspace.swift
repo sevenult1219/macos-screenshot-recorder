@@ -32,7 +32,9 @@ struct ScreenshotWorkspace: View {
               !model.isCapturing,
               !model.isRecording,
               !model.isSelectingRegion else { return false }
-        if model.screenshotMode == .long, !model.hasAccessibilityPermission { return false }
+        if model.screenshotMode == .long,
+           !model.settings.manualScroll,
+           !model.hasAccessibilityPermission { return false }
         return true
     }
 
@@ -54,7 +56,9 @@ struct ScreenshotWorkspace: View {
                 onBack: { model.showSection(.home) }
             )
 
-            if model.screenshotMode == .long, !model.hasAccessibilityPermission {
+            if model.screenshotMode == .long,
+               !model.settings.manualScroll,
+               !model.hasAccessibilityPermission {
                 AccessPermissionBanner()
             }
 
@@ -158,6 +162,22 @@ struct ScreenshotWorkspace: View {
 
             if model.screenshotMode == .long {
                 Divider().opacity(0.55)
+                Toggle(isOn: Binding(
+                    get: { model.settings.manualScroll },
+                    set: { model.settings.manualScroll = $0 }
+                )) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("手动滚动")
+                            .font(.system(size: 10.5, weight: .medium))
+                        Text("你自己滚动页面，应用连续抓帧拼接；不使用自动滚动和辅助功能")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .tint(.accentColor)
+
                 HStack(spacing: 8) {
                     Text("重叠 \(Int((model.settings.overlapFraction * 100).rounded()))%")
                         .font(.system(size: 9.8, design: .monospaced))
@@ -179,14 +199,16 @@ struct ScreenshotWorkspace: View {
                     }
                 }
 
-                HStack(spacing: 5) {
-                    Image(systemName: "cursorarrow")
-                    Text(model.settings.allowCompatibilityScroll
-                         ? "优先定向滚动，必要时使用兼容回退"
-                         : "只使用定向滚动，不使用兼容回退")
+                if !model.settings.manualScroll {
+                    HStack(spacing: 5) {
+                        Image(systemName: "cursorarrow")
+                        Text(model.settings.allowCompatibilityScroll
+                             ? "优先定向滚动，必要时使用兼容回退"
+                             : "只使用定向滚动，不使用兼容回退")
+                    }
+                    .font(.system(size: 9.2))
+                    .foregroundStyle(.tertiary)
                 }
-                .font(.system(size: 9.2))
-                .foregroundStyle(.tertiary)
             }
         }
     }

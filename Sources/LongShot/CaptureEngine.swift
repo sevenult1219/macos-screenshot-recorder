@@ -56,7 +56,7 @@ final class CaptureEngine {
 
     func run() async throws -> CaptureOutput {
         guard Permissions.hasScreenRecording else { throw CaptureError.permissionDenied }
-        if mode == .long, scrollTarget != nil, !Permissions.hasAccessibility {
+        if mode == .long, !settings.manualScroll, scrollTarget != nil, !Permissions.hasAccessibility {
             throw CaptureError.accessibilityDenied
         }
 
@@ -157,6 +157,81 @@ final class CaptureEngine {
                 backingScale: backingScale,
                 isSingleShot: true,
                 warning: nil
+            )
+        }
+
+        if settings.manualScroll {
+            let manualAligner = FrameAligner(
+                maximumScrollFraction: 0.65,
+                minimumOffset: 12
+            )
+            var screens = 1
+            var warning: String?
+
+            await report(screens: screens, height: canvas.height)
+            while !isCancelled {
+                try await sleep(milliseconds: 320)
+                guard !isCancelled else { break }
+
+                let candidate = try await captureBitmap(
+                    filter: filter,
+                    configuration: configuration,
+                    region: captureRegion
+                )
+                guard !previous.isNearlyEqual(to: candidate, tolerance: 0.0012) else { continue }
+
+                // Wait for the user's scroll gesture to settle before matching.
+                try await sleep(milliseconds: 150)
+                guard !isCancelled else { break }
+                guard let next = try? await captureBitmap(
+                    filter: filter,
+                    configuration: configuration,
+                    region: captureRegion
+                ), !previous.isNearlyEqual(to: next, tolerance: 0.0015) else {
+                    continue
+                }
+
+                guard let alignment = try? manualAligner.align(previous: previous, next: next),
+                      alignment.offset > 0 else {
+                    continue
+                }
+
+                do {
+                    _ = try canvas.append(next, offset: alignment.offset)
+                } catch CanvasError.diskFull {
+                    warning = "磁盘剩余空间不足，已停止并保存已截取的 \(canvas.height.formatted()) px 内容。"
+                    break
+                } catch {
+                    warning = "拼接下一屏时遇到问题，已保留前面截取的内容。"
+                    break
+                }
+
+                previous = next
+                screens += 1
+                await report(screens: screens, height: canvas.height)
+            }
+
+            if screens == 1 {
+                warning = warning ?? "没有检测到新的滚动内容。请手动滚动页面后再试；已保存当前画面。"
+            } else if isCancelled, warning == nil {
+                warning = "已手动停止，图片包含 \(screens) 屏内容。"
+            }
+
+            await report(screens: screens, height: canvas.height)
+            let rawImage: RawImageFile
+            do {
+                rawImage = try canvas.finalize()
+            } catch {
+                throw CaptureError.captureFailed(error.localizedDescription)
+            }
+            return CaptureOutput(
+                rawImage: rawImage,
+                screens: screens,
+                width: canvas.width,
+                height: canvas.height,
+                backingScale: backingScale,
+                isSingleShot: false,
+                warning: warning
             )
         }
 

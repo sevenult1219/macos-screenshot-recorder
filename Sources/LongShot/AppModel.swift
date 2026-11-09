@@ -43,6 +43,7 @@ final class AppModel: ObservableObject {
     private let regionSelector = RegionSelectionController()
     private var recorder: ScreenRecorder?
     private var recordingStarting = false
+    private var countdownTask: Task<Void, Never>?
     private var microphoneRequestInFlight = false
     private var recordingTimer: Timer?
     private var recordingStartedAt: Date?
@@ -459,9 +460,10 @@ final class AppModel: ObservableObject {
         phase = .capturing
         result = nil
         hud.show(
-            title: mode == .long ? "正在长截屏" : "正在截屏",
+            title: mode == .long ? (settings.manualScroll ? "手动长截屏" : "正在长截屏") : "正在截屏",
             label: source.hudLabel,
-            frame: source.hudFrame
+            frame: source.hudFrame,
+            manual: mode == .long && settings.manualScroll
         ) { [weak self] in
             self?.stopCapture()
         }
@@ -671,6 +673,73 @@ final class AppModel: ObservableObject {
             return
         }
 
+        if settings.recordingCountdown > 0 {
+            beginRecordingCountdown(
+                source: source,
+                label: label,
+                outputURL: outputURL
+            )
+        } else {
+            beginRecordingSession(
+                source: source,
+                label: label,
+                outputURL: outputURL
+            )
+        }
+    }
+
+    private func beginRecordingCountdown(
+        source: RecordingSource,
+        label: String,
+        outputURL: URL
+    ) {
+        countdownTask?.cancel()
+        recordingStarting = true
+        hideMainWindows()
+        let seconds = max(1, settings.recordingCountdown)
+        hud.showCountdown(
+            seconds: seconds,
+            label: label,
+            frame: hudFrame(for: source)
+        ) { [weak self] in
+            self?.cancelRecordingCountdown()
+        }
+
+        countdownTask = Task { @MainActor [weak self] in
+            var remaining = seconds
+            while remaining > 0 {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                remaining -= 1
+                if remaining > 0 {
+                    self?.hud.updateCountdown(seconds: remaining, label: label)
+                }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.countdownTask = nil
+            self.beginRecordingSession(
+                source: source,
+                label: label,
+                outputURL: outputURL
+            )
+        }
+    }
+
+    private func cancelRecordingCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+        guard recordingStarting, !isRecording else { return }
+        recordingStarting = false
+        hud.hide()
+        showMainWindow()
+    }
+
+    private func beginRecordingSession(
+        source: RecordingSource,
+        label: String,
+        outputURL: URL
+    ) {
+        guard !isRecording else { return }
         if case .window(let target) = source {
             WindowActivator.activate(target)
         }
@@ -711,6 +780,10 @@ final class AppModel: ObservableObject {
     }
 
     func stopRecording() {
+        if recordingStarting, !isRecording {
+            cancelRecordingCountdown()
+            return
+        }
         guard isRecording, let recorder else { return }
         isRecording = false
         recordingTimer?.invalidate()
@@ -1066,6 +1139,22 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func pinCurrentScreenshot() {
+        guard let result else { return }
+        guard let image = try? result.rawImage.cgImage() else {
+            alert = AppAlert(title: "无法贴图", message: "无法读取当前截图。")
+            return
+        }
+        PinnedImageController.shared.pin(
+            image: NSImage(
+                cgImage: image,
+                size: NSSize(width: result.width, height: result.height)
+            ),
+            title: result.fileURL?.lastPathComponent ?? "截图"
+        )
+        flashToast("已贴图置顶，可拖动或点击右上角关闭")
+    }
+
     func copyToClipboard() {
         guard let result else { return }
         guard let url = screenshotSaveURL ?? result.fileURL else {
@@ -1144,6 +1233,10 @@ final class AppModel: ObservableObject {
         return "截录_\(formatter.string(from: Date())).\(ext)"
     }
 
+    func showToast(_ text: String) {
+        flashToast(text)
+    }
+
     private func flashToast(_ text: String) {
         toast = text
         let current = text
@@ -1186,6 +1279,8 @@ final class AppModel: ObservableObject {
         defaults.set(settings.recordingAudio, forKey: "recordingAudio")
         defaults.set(settings.recordingMicrophone, forKey: "recordingMicrophone")
         defaults.set(settings.allowCompatibilityScroll, forKey: "allowCompatibilityScroll")
+        defaults.set(settings.manualScroll, forKey: "manualScroll")
+        defaults.set(settings.recordingCountdown, forKey: "recordingCountdown")
     }
 
     private func loadSettings() {
@@ -1208,6 +1303,12 @@ final class AppModel: ObservableObject {
         }
         if defaults.object(forKey: "allowCompatibilityScroll") != nil {
             loaded.allowCompatibilityScroll = defaults.bool(forKey: "allowCompatibilityScroll")
+        }
+        if defaults.object(forKey: "manualScroll") != nil {
+            loaded.manualScroll = defaults.bool(forKey: "manualScroll")
+        }
+        if defaults.object(forKey: "recordingCountdown") != nil {
+            loaded.recordingCountdown = defaults.integer(forKey: "recordingCountdown")
         }
         settings = loaded
     }
