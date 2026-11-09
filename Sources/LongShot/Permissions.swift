@@ -1,5 +1,6 @@
 import ApplicationServices
 import AppKit
+import AVFoundation
 import CoreGraphics
 
 enum Permissions {
@@ -9,6 +10,10 @@ enum Permissions {
 
     static var hasAccessibility: Bool {
         AXIsProcessTrusted()
+    }
+
+    static var hasMicrophone: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 
     @discardableResult

@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLoadingWindows = false
     @Published var hasScreenPermission = Permissions.hasScreenRecording
     @Published var hasAccessibilityPermission = Permissions.hasAccessibility
+    @Published var hasMicrophonePermission = Permissions.hasMicrophone
     @Published var phase: CapturePhase = .idle
     @Published var result: CaptureResult?
     @Published var screenshotSaveURL: URL?
@@ -115,6 +116,7 @@ final class AppModel: ObservableObject {
         let screenBefore = hasScreenPermission
         hasScreenPermission = Permissions.hasScreenRecording
         hasAccessibilityPermission = Permissions.hasAccessibility
+        hasMicrophonePermission = Permissions.hasMicrophone
 
         if hasScreenPermission, !screenBefore, windows.isEmpty, !isLoadingWindows {
             Task { await refreshWindows() }
@@ -138,6 +140,31 @@ final class AppModel: ObservableObject {
                 message: "勾选“截录”后回到本应用即可刷新窗口列表。首次授权后，macOS 可能要求重新启动应用。"
             )
             Permissions.openSystemSettings(for: .screen)
+        }
+    }
+
+    func requestMicrophonePermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            hasMicrophonePermission = true
+        case .notDetermined:
+            Task {
+                let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                hasMicrophonePermission = granted || Permissions.hasMicrophone
+                if !granted {
+                    alert = AppAlert(
+                        title: "麦克风未授权",
+                        message: "录屏时仍可只录制系统声音。需要麦克风时，请在“系统设置 → 隐私与安全性 → 麦克风”中允许“截录”。"
+                    )
+                }
+            }
+        default:
+            hasMicrophonePermission = false
+            alert = AppAlert(
+                title: "需要麦克风权限",
+                message: "请在“系统设置 → 隐私与安全性 → 麦克风”中允许“截录”，或在录屏设置中关闭“录制麦克风”。"
+            )
+            Permissions.openSystemSettings(for: .microphone)
         }
     }
 
@@ -596,6 +623,7 @@ final class AppModel: ObservableObject {
                     Task {
                         let granted = await AVCaptureDevice.requestAccess(for: .audio)
                         self.microphoneRequestInFlight = false
+                        self.hasMicrophonePermission = granted || Permissions.hasMicrophone
                         if granted {
                             self.startRecordingNow(source: source, label: label)
                         } else {
@@ -620,6 +648,7 @@ final class AppModel: ObservableObject {
     }
 
     private func handleMicrophonePermissionDenied() {
+        hasMicrophonePermission = false
         alert = AppAlert(
             title: "需要麦克风权限",
             message: "请在“系统设置 → 隐私与安全性 → 麦克风”中允许“截录”，或关闭“录制麦克风”开关。"

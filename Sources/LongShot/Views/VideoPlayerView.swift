@@ -6,6 +6,7 @@ final class VideoPlaybackModel: ObservableObject {
     let player: AVPlayer
     @Published private(set) var isPlaying = false
     @Published private(set) var isReady = false
+    @Published private(set) var isMuted = false
     @Published private(set) var duration: Double = 0
     @Published private(set) var currentTime: Double = 0
 
@@ -101,6 +102,11 @@ final class VideoPlaybackModel: ObservableObject {
     func stop() {
         player.pause()
         isPlaying = false
+    }
+
+    func toggleMute() {
+        player.isMuted.toggle()
+        isMuted = player.isMuted
     }
 
     func seek(to seconds: Double) {
@@ -217,6 +223,18 @@ struct VideoPlayerPanel: View {
                     .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.85))
                     .frame(width: 34, alignment: .leading)
+
+                Button {
+                    playback.toggleMute()
+                } label: {
+                    Image(systemName: playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.white.opacity(0.16)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(playback.isMuted ? "取消静音" : "静音")
             }
         }
         .padding(.horizontal, 14)

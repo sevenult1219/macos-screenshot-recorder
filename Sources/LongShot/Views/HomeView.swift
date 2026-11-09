@@ -204,7 +204,7 @@ private struct PermissionPopover: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("权限设置")
                 .font(.system(size: 14, weight: .semibold))
-            Text("屏幕录制用于读取窗口画面；辅助功能用于自动滚动。录屏只需要屏幕录制权限。")
+            Text("屏幕录制用于读取窗口画面；辅助功能用于自动滚动。麦克风为可选权限，仅在开启麦克风录制时使用。")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -222,6 +222,13 @@ private struct PermissionPopover: View {
                 granted: model.hasAccessibilityPermission
             ) {
                 model.requestAccessibilityPermission()
+            }
+            PermissionRow(
+                title: "麦克风",
+                detail: "录屏时录制你的声音（可选）",
+                granted: model.hasMicrophonePermission
+            ) {
+                model.requestMicrophonePermission()
             }
         }
         .padding(18)
